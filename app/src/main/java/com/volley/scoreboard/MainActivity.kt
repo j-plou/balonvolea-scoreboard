@@ -7,17 +7,20 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,13 +28,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -39,13 +43,12 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Slider
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -58,12 +61,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.volley.scoreboard.ui.theme.ColorWhite
 import com.volley.scoreboard.ui.theme.OrangePrimary
 import com.volley.scoreboard.ui.theme.PurplePrimary
@@ -116,16 +123,16 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
         state = state,
         onIncrementPoint = { viewModel.incrementPoints(it) },
         onDecrementPoint = { viewModel.decrementPoints(it) },
-        onIncrementSet = { viewModel.incrementSets(it) },
-        onDecrementSet = { viewModel.decrementSets(it) },
-        onResetPoints = { viewModel.resetPoints() },
         onResetAll = { viewModel.resetAll() },
         onOpenTeamEditor = { viewModel.openTeamEditor(it) },
         onCloseTeamEditor = { viewModel.closeTeamEditor() },
         onUpdateTeam = { side, name, color -> viewModel.updateTeam(side, name, color) },
         onToggleSettings = { viewModel.toggleSettings(it) },
         onToggleVolumeControl = { viewModel.setVolumeControl(it) },
-        onSelectTotalSets = { viewModel.updateTotalSets(it) }
+        onSelectTotalSets = { viewModel.updateTotalSets(it) },
+        onOpenSetSelector = { viewModel.openSetSelector(it) },
+        onCloseSetSelector = { viewModel.closeSetSelector() },
+        onSelectSetValue = { side, value -> viewModel.setSetsValue(side, value) }
     )
 }
 
@@ -134,63 +141,68 @@ fun ScoreboardScreen(
     state: ScoreboardState,
     onIncrementPoint: (Boolean) -> Unit,
     onDecrementPoint: (Boolean) -> Unit,
-    onIncrementSet: (Boolean) -> Unit,
-    onDecrementSet: (Boolean) -> Unit,
-    onResetPoints: () -> Unit,
     onResetAll: () -> Unit,
     onOpenTeamEditor: (Boolean) -> Unit,
     onCloseTeamEditor: () -> Unit,
     onUpdateTeam: (Boolean, String, Color) -> Unit,
     onToggleSettings: (Boolean) -> Unit,
     onToggleVolumeControl: (Boolean) -> Unit,
-    onSelectTotalSets: (Int) -> Unit
+    onSelectTotalSets: (Int) -> Unit,
+    onOpenSetSelector: (Boolean) -> Unit,
+    onCloseSetSelector: () -> Unit,
+    onSelectSetValue: (Boolean, Int) -> Unit
 ) {
     val matchFinished = state.isMatchFinished()
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(16.dp)
-    ) {
-        TopBar(
-            onResetPoints = onResetPoints,
-            onResetAll = onResetAll,
-            onOpenSettings = { onToggleSettings(true) }
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            TeamPanel(
+    val currentSetNumber = state.local.sets + state.visitor.sets + 1
+    val localSetPoint = isSetPoint(state.local.points, state.visitor.points, currentSetNumber, state.totalSets)
+    val visitorSetPoint = isSetPoint(state.visitor.points, state.local.points, currentSetNumber, state.totalSets)
+    val localMatchPoint = localSetPoint && state.local.sets == setsToWin(state.totalSets) - 1
+    val visitorMatchPoint = visitorSetPoint && state.visitor.sets == setsToWin(state.totalSets) - 1
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Row(modifier = Modifier.fillMaxSize()) {
+            TeamHalf(
                 title = "Local",
                 team = state.local,
-                opponent = state.visitor,
-                totalSets = state.totalSets,
+                setPoint = localSetPoint,
+                matchPoint = localMatchPoint,
                 matchFinished = matchFinished,
-                modifier = Modifier.weight(1f),
                 onEditTeam = { onOpenTeamEditor(true) },
-                onIncrementPoint = { onIncrementPoint(true) },
-                onDecrementPoint = { onDecrementPoint(true) },
-                onIncrementSet = { onIncrementSet(true) },
-                onDecrementSet = { onDecrementSet(true) }
+                onSwipeUp = { onIncrementPoint(true) },
+                onSwipeDown = { onDecrementPoint(true) },
+                modifier = Modifier.weight(1f)
             )
-            TeamPanel(
+            TeamHalf(
                 title = "Visitante",
                 team = state.visitor,
-                opponent = state.local,
-                totalSets = state.totalSets,
+                setPoint = visitorSetPoint,
+                matchPoint = visitorMatchPoint,
                 matchFinished = matchFinished,
-                modifier = Modifier.weight(1f),
                 onEditTeam = { onOpenTeamEditor(false) },
-                onIncrementPoint = { onIncrementPoint(false) },
-                onDecrementPoint = { onDecrementPoint(false) },
-                onIncrementSet = { onIncrementSet(false) },
-                onDecrementSet = { onDecrementSet(false) }
+                onSwipeUp = { onIncrementPoint(false) },
+                onSwipeDown = { onDecrementPoint(false) },
+                modifier = Modifier.weight(1f)
             )
         }
+
+        SetsBar(
+            localSets = state.local.sets,
+            visitorSets = state.visitor.sets,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(16.dp),
+            onTapLocal = { onOpenSetSelector(true) },
+            onTapVisitor = { onOpenSetSelector(false) }
+        )
+
+        TopActions(
+            onResetAll = onResetAll,
+            onOpenSettings = { onToggleSettings(true) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp)
+                .align(Alignment.TopEnd)
+        )
     }
 
     if (state.isSettingsOpen) {
@@ -200,6 +212,17 @@ fun ScoreboardScreen(
             onDismiss = { onToggleSettings(false) },
             onVolumeControlChange = onToggleVolumeControl,
             onTotalSetsChange = onSelectTotalSets
+        )
+    }
+
+    state.editingSetsSide?.let { side ->
+        val sets = if (side) state.local.sets else state.visitor.sets
+        SetSelectionDialog(
+            sideLabel = if (side) "Local" else "Visitante",
+            current = sets,
+            totalSets = state.totalSets,
+            onDismiss = onCloseSetSelector,
+            onSelect = { value -> onSelectSetValue(side, value) }
         )
     }
 
@@ -215,148 +238,120 @@ fun ScoreboardScreen(
 }
 
 @Composable
-fun TopBar(
-    onResetPoints: () -> Unit,
+fun TopActions(
     onResetAll: () -> Unit,
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier = modifier,
+        horizontalArrangement = Arrangement.End,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        OutlinedButton(onClick = onResetPoints) {
-            Icon(Icons.Default.Refresh, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Reset puntos")
+        IconButton(onClick = onResetAll) {
+            Icon(Icons.Default.Refresh, contentDescription = "Reset general")
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = onResetAll) {
-                Text("Reset general")
-            }
-            IconButton(onClick = onOpenSettings) {
-                Icon(Icons.Default.Settings, contentDescription = "Configuración")
-            }
+        IconButton(onClick = onOpenSettings) {
+            Icon(Icons.Default.Settings, contentDescription = "Configuración")
         }
     }
 }
 
 @Composable
-fun TeamPanel(
+fun TeamHalf(
     title: String,
     team: TeamState,
-    opponent: TeamState,
-    totalSets: Int,
+    setPoint: Boolean,
+    matchPoint: Boolean,
     matchFinished: Boolean,
-    modifier: Modifier = Modifier,
     onEditTeam: () -> Unit,
-    onIncrementPoint: () -> Unit,
-    onDecrementPoint: () -> Unit,
-    onIncrementSet: () -> Unit,
-    onDecrementSet: () -> Unit
+    onSwipeUp: () -> Unit,
+    onSwipeDown: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    val setNumber = team.sets + opponent.sets + 1
-    val setPoint = isSetPoint(team.points, opponent.points, setNumber, totalSets)
-    val matchPoint = setPoint && team.sets == setsToWin(totalSets) - 1
-    val indicatorColor = if (setPoint) Color(0xFFE53935) else team.color
-
-    Card(
+    var dragOffset by remember { mutableStateOf(0f) }
+    var gestureTriggered by remember { mutableStateOf(false) }
+    val draggableState = rememberDraggableState { delta ->
+        if (gestureTriggered) return@rememberDraggableState
+        dragOffset += delta
+        if (dragOffset <= -40f) {
+            onSwipeUp()
+            gestureTriggered = true
+        } else if (dragOffset >= 40f) {
+            onSwipeDown()
+            gestureTriggered = true
+        }
+    }
+    Box(
         modifier = modifier
-            .fillMaxHeight(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            .fillMaxSize()
+            .background(team.color)
+            .draggable(
+                state = draggableState,
+                orientation = Orientation.Vertical,
+                enabled = !matchFinished,
+                onDragStopped = {
+                    dragOffset = 0f
+                    gestureTriggered = false
+                }
+            )
+            .padding(16.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.SpaceBetween
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            TeamHeader(
-                title = title,
-                team = team,
-                indicatorColor = indicatorColor,
-                onEditTeam = onEditTeam
-            )
-            ScoreDisplay(
-                color = indicatorColor,
-                points = team.points,
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .zIndex(1f),
+                contentAlignment = Alignment.TopCenter
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .padding(top = 24.dp, bottom = 20.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = onEditTeam
+                        )
+                ) {
+                    OutlinedText(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = ColorWhite.copy(alpha = 0.95f),
+                        strokeColor = Color.Black,
+                        strokeWidthDp = 2f,
+                        maxLines = 1,
+                        textAlign = TextAlign.Center
+                    )
+                    OutlinedText(
+                        text = team.name,
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 34.sp
+                        ),
+                        color = ColorWhite,
+                        strokeColor = Color.Black,
+                        strokeWidthDp = 2f,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+            FlipCounter(
+                value = team.points,
+                background = team.color,
                 setPoint = setPoint,
                 matchPoint = matchPoint,
-                modifier = Modifier.weight(1f)
-            )
-            ControlsRow(
-                enabled = !matchFinished,
-                onIncrement = onIncrementPoint,
-                onDecrement = onDecrementPoint
-            )
-            SetRow(
-                sets = team.sets,
-                totalSets = totalSets,
-                matchFinished = matchFinished,
-                onIncrementSet = onIncrementSet,
-                onDecrementSet = onDecrementSet
+                modifier = Modifier.zIndex(0f)
             )
         }
-    }
-}
-
-@Composable
-fun TeamHeader(
-    title: String,
-    team: TeamState,
-    indicatorColor: Color,
-    onEditTeam: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onEditTeam
-            ),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(text = title, style = MaterialTheme.typography.labelLarge, color = Color.Gray)
-            Text(
-                text = team.name,
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                maxLines = 1
-            )
-        }
-        Box(
-            modifier = Modifier
-                .size(28.dp)
-                .clip(CircleShape)
-                .background(indicatorColor)
-                .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f), CircleShape)
-        )
-    }
-}
-
-@Composable
-fun ScoreDisplay(
-    color: Color,
-    points: Int,
-    setPoint: Boolean,
-    matchPoint: Boolean,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 12.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        FlipCounter(
-            value = points,
-            background = color,
-            setPoint = setPoint,
-            matchPoint = matchPoint
-        )
     }
 }
 
@@ -365,79 +360,49 @@ fun FlipCounter(
     value: Int,
     background: Color,
     setPoint: Boolean,
-    matchPoint: Boolean
+    matchPoint: Boolean,
+    modifier: Modifier = Modifier
 ) {
-    Box(
-        modifier = Modifier
+    Surface(
+        color = background,
+        contentColor = ColorWhite,
+        shape = RoundedCornerShape(8.dp),
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
+        modifier = modifier
             .fillMaxWidth()
-            .aspectRatio(1.4f)
-            .clip(RoundedCornerShape(12.dp))
-            .background(background)
-            .border(2.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f), RoundedCornerShape(12.dp)),
-        contentAlignment = Alignment.Center
+            .aspectRatio(1.2f)
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .fillMaxHeight(0.5f)
-                    .align(Alignment.TopCenter)
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(
-                                Color.White.copy(alpha = 0.15f),
-                                Color.Transparent
-                            )
-                        )
-                    )
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .fillMaxHeight(0.5f)
-                    .align(Alignment.BottomCenter)
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(
-                                Color.Transparent,
-                                Color.Black.copy(alpha = 0.12f)
-                            )
-                        )
-                    )
-            )
-        }
-        AnimatedContent(
-            targetState = value,
-            transitionSpec = {
-                fadeIn(animationSpec = tween(120)) togetherWith
-                        fadeOut(animationSpec = tween(120))
-            },
-            label = "counter"
-        ) { target ->
-            val textColor = when {
-                matchPoint -> Color(0xFFFFEBEE)
-                setPoint -> ColorWhite
-                else -> ColorWhite
+        Box(contentAlignment = Alignment.Center) {
+            AnimatedContent(
+                targetState = value,
+                transitionSpec = {
+                    fadeIn(animationSpec = tween(120)) togetherWith
+                            fadeOut(animationSpec = tween(120))
+                },
+                label = "counter"
+            ) { target ->
+                val textColor = when {
+                    matchPoint -> Color(0xFFFFEBEE)
+                    setPoint -> ColorWhite
+                    else -> ColorWhite
+                }
+                val animatedScale by animateHeartbeat(matchPoint)
+                OutlinedText(
+                    text = target.toString().padStart(2, '0'),
+                    modifier = Modifier.scale(animatedScale),
+                    style = MaterialTheme.typography.displayLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 260.sp,
+                        letterSpacing = 2.sp
+                    ),
+                    color = textColor,
+                    strokeColor = Color.Black,
+                    strokeWidthDp = 3f,
+                    textAlign = TextAlign.Center
+                )
             }
-            val animatedScale by animateHeartbeat(matchPoint)
-            Text(
-                text = target.toString().padStart(2, '0'),
-                modifier = Modifier.scale(animatedScale),
-                style = MaterialTheme.typography.displayLarge.copy(
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 80.sp,
-                    letterSpacing = 2.sp
-                ),
-                color = textColor,
-                textAlign = TextAlign.Center
-            )
         }
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(2.dp)
-                .background(Color.White.copy(alpha = 0.25f))
-        )
     }
 }
 
@@ -457,72 +422,80 @@ fun animateHeartbeat(active: Boolean): androidx.compose.runtime.State<Float> {
 }
 
 @Composable
-fun ControlsRow(
-    enabled: Boolean,
-    onIncrement: () -> Unit,
-    onDecrement: () -> Unit
+fun SetsBar(
+    localSets: Int,
+    visitorSets: Int,
+    modifier: Modifier = Modifier,
+    onTapLocal: () -> Unit,
+    onTapVisitor: () -> Unit
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = ColorWhite,
+        tonalElevation = 4.dp,
+        shadowElevation = 8.dp,
+        modifier = modifier
+            .defaultMinSize(minHeight = 92.dp)
+            .wrapContentWidth()
     ) {
-        ScoreButton(text = "-", enabled = enabled) { onDecrement() }
-        ScoreButton(text = "+", enabled = enabled) { onIncrement() }
-    }
-}
-
-@Composable
-fun ScoreButton(text: String, enabled: Boolean, onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = Modifier
-            .width(100.dp)
-            .height(56.dp),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
-        )
-    }
-}
-
-@Composable
-fun SetRow(
-    sets: Int,
-    totalSets: Int,
-    matchFinished: Boolean,
-    onIncrementSet: () -> Unit,
-    onDecrementSet: () -> Unit
-) {
-    val setsToWin = setsToWin(totalSets)
-    val canIncrease = !matchFinished && sets < setsToWin
-    val canDecrease = !matchFinished && sets > 0
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column {
-            Text(text = "Sets", style = MaterialTheme.typography.labelLarge, color = Color.Gray)
+        Column(
+            modifier = Modifier
+                .padding(horizontal = 20.dp, vertical = 12.dp)
+                .wrapContentWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
             Text(
-                text = "$sets / $setsToWin",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                text = "Sets",
+                style = MaterialTheme.typography.labelMedium.copy(fontSize = 16.sp, fontWeight = FontWeight.Bold),
+                color = Color.Gray
             )
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { onDecrementSet() }, enabled = canDecrease) {
-                Text("-")
-            }
-            OutlinedButton(onClick = { onIncrementSet() }, enabled = canIncrease) {
-                Text("+")
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(
+                modifier = Modifier.wrapContentWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = localSets.toString(),
+                    style = MaterialTheme.typography.headlineSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 24.sp
+                    ),
+                    modifier = Modifier
+                        .padding(vertical = 10.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = onTapLocal
+                        )
+                        .padding(horizontal = 8.dp)
+                )
+                Box(
+                    modifier = Modifier
+                        .width(1.dp)
+                        .height(28.dp)
+                        .background(Color.LightGray.copy(alpha = 0.8f))
+                )
+                Text(
+                    text = visitorSets.toString(),
+                    style = MaterialTheme.typography.headlineSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 24.sp
+                    ),
+                    modifier = Modifier
+                        .padding(vertical = 10.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = onTapVisitor
+                        )
+                        .padding(horizontal = 8.dp)
+                )
             }
         }
     }
 }
-
 @Composable
 fun TeamEditDialog(
     initialName: String,
@@ -531,38 +504,80 @@ fun TeamEditDialog(
     onSave: (String, Color) -> Unit
 ) {
     var name by remember { mutableStateOf(initialName) }
-    var red by remember { mutableStateOf((initialColor.red * 255).toInt()) }
-    var green by remember { mutableStateOf((initialColor.green * 255).toInt()) }
-    var blue by remember { mutableStateOf((initialColor.blue * 255).toInt()) }
-
-    val color = Color(red / 255f, green / 255f, blue / 255f)
+    val basePalette = listOf(
+        OrangePrimary,
+        PurplePrimary,
+        Color(0xFFFFFFFF), // white
+        Color(0xFF000000), // black
+        Color(0xFF9CA3AF), // gray
+        Color(0xFFEF4444), // red
+        Color(0xFFEC4899), // pink
+        Color(0xFFFFD54F), // yellow
+        Color(0xFF22C55E), // green
+        Color(0xFFA3E635), // light green
+        Color(0xFF0EA5E9), // blue
+        Color(0xFF2DD4BF), // light blue
+        Color(0xFF1E3A8A), // navy
+        Color(0xFFFF6B6B)  // coral
+    )
+    val palette = if (basePalette.any { it == initialColor }) {
+        basePalette
+    } else {
+        basePalette.dropLast(1) + initialColor
+    }
+    var selectedColor by remember { mutableStateOf(initialColor) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Editar equipo") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                androidx.compose.material3.OutlinedTextField(
+                OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text("Nombre") },
                     singleLine = true
                 )
-                ColorSlider(label = "Rojo", value = red) { red = it }
-                ColorSlider(label = "Verde", value = green) { green = it }
-                ColorSlider(label = "Azul", value = blue) { blue = it }
+                Text(text = "Color", style = MaterialTheme.typography.labelMedium)
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    palette.chunked(6).forEach { row ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            row.forEach { swatch ->
+                                val isSelected = swatch == selectedColor
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(swatch)
+                                        .border(
+                                            width = if (isSelected) 3.dp else 1.dp,
+                                            color = if (isSelected) MaterialTheme.colorScheme.onSurface else Color.LightGray,
+                                            shape = CircleShape
+                                        )
+                                        .clickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = null
+                                        ) { selectedColor = swatch }
+                                )
+                            }
+                        }
+                    }
+                }
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(50.dp)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(color)
+                        .background(selectedColor)
                         .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f), RoundedCornerShape(10.dp))
                 )
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSave(name.ifBlank { initialName }, color); onDismiss() }) {
+            TextButton(onClick = { onSave(name.ifBlank { initialName }, selectedColor); onDismiss() }) {
                 Text("Guardar")
             }
         },
@@ -572,24 +587,6 @@ fun TeamEditDialog(
             }
         }
     )
-}
-
-@Composable
-fun ColorSlider(label: String, value: Int, onValueChange: (Int) -> Unit) {
-    Column {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(label)
-            Text(value.toString())
-        }
-        Slider(
-            value = value.toFloat(),
-            onValueChange = { onValueChange(it.toInt()) },
-            valueRange = 0f..255f
-        )
-    }
 }
 
 @Composable
@@ -629,7 +626,10 @@ fun SettingsDialog(
                         val selected = option == totalSets
                         Button(
                             onClick = { onTotalSetsChange(option) },
-                            enabled = !selected
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                            )
                         ) {
                             Text("$option")
                         }
@@ -643,6 +643,77 @@ fun SettingsDialog(
     )
 }
 
+@Composable
+fun SetSelectionDialog(
+    sideLabel: String,
+    current: Int,
+    totalSets: Int,
+    onDismiss: () -> Unit,
+    onSelect: (Int) -> Unit
+) {
+    val options = (0..setsToWin(totalSets)).toList()
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Ajustar sets $sideLabel") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(text = "Selecciona el marcador de sets (0-${setsToWin(totalSets)})")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    options.forEach { value ->
+                        val selected = value == current
+                        Button(
+                            onClick = { onSelect(value) },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                            )
+                        ) {
+                            Text(value.toString())
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Cerrar") }
+        }
+    )
+}
+
+@Composable
+fun OutlinedText(
+    text: String,
+    style: TextStyle,
+    color: Color,
+    modifier: Modifier = Modifier,
+    strokeColor: Color = Color.Black,
+    strokeWidthDp: Float = 2f,
+    maxLines: Int = Int.MAX_VALUE,
+    overflow: TextOverflow = TextOverflow.Clip,
+    textAlign: TextAlign? = null
+) {
+    val strokeWidthPx = with(LocalDensity.current) { strokeWidthDp.dp.toPx() }
+    Box(modifier = modifier.padding(vertical = 2.dp)) {
+        Text(
+            text = text,
+            style = style.copy(
+                color = strokeColor,
+                drawStyle = Stroke(width = strokeWidthPx)
+            ),
+            maxLines = maxLines,
+            overflow = overflow,
+            textAlign = textAlign
+        )
+        Text(
+            text = text,
+            style = style.copy(color = color),
+            maxLines = maxLines,
+            overflow = overflow,
+            textAlign = textAlign
+        )
+    }
+}
+
 data class TeamState(
     val name: String,
     val color: Color,
@@ -651,12 +722,13 @@ data class TeamState(
 )
 
 data class ScoreboardState(
-    val local: TeamState = TeamState("Local", OrangePrimary),
-    val visitor: TeamState = TeamState("Visitante", PurplePrimary),
+    val local: TeamState = TeamState("Equipo 1", OrangePrimary),
+    val visitor: TeamState = TeamState("Equipo 2", PurplePrimary),
     val totalSets: Int = 5,
     val volumeControlEnabled: Boolean = true,
     val isSettingsOpen: Boolean = false,
-    val editingTeamSide: Boolean? = null
+    val editingTeamSide: Boolean? = null,
+    val editingSetsSide: Boolean? = null
 ) {
     fun isMatchFinished(): Boolean {
         val targetSets = setsToWin(totalSets)
@@ -729,7 +801,35 @@ class ScoreboardViewModel : androidx.lifecycle.ViewModel() {
     }
 
     fun resetAll() {
-        uiState = ScoreboardState()
+        val state = uiState
+        uiState = state.copy(
+            local = state.local.copy(points = 0, sets = 0),
+            visitor = state.visitor.copy(points = 0, sets = 0),
+            isSettingsOpen = false,
+            editingTeamSide = null,
+            editingSetsSide = null
+        )
+    }
+
+    fun openSetSelector(isLocal: Boolean) {
+        uiState = uiState.copy(editingSetsSide = isLocal)
+    }
+
+    fun closeSetSelector() {
+        uiState = uiState.copy(editingSetsSide = null)
+    }
+
+    fun setSetsValue(isLocal: Boolean, value: Int) {
+        val state = uiState
+        val limit = setsToWin(state.totalSets)
+        val clamped = value.coerceIn(0, limit)
+        val team = if (isLocal) state.local else state.visitor
+        val updatedTeam = team.copy(sets = clamped)
+        uiState = if (isLocal) {
+            state.copy(local = updatedTeam, editingSetsSide = null)
+        } else {
+            state.copy(visitor = updatedTeam, editingSetsSide = null)
+        }
     }
 
     fun openTeamEditor(isLocal: Boolean) {
