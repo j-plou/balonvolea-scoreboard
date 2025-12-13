@@ -15,6 +15,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -44,6 +46,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -61,10 +64,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.graphics.Shadow
+
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
@@ -162,9 +165,7 @@ fun ScoreboardScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         Row(modifier = Modifier.fillMaxSize()) {
             TeamHalf(
-                title = "Local",
                 team = state.local,
-                setPoint = localSetPoint,
                 matchPoint = localMatchPoint,
                 matchFinished = matchFinished,
                 onEditTeam = { onOpenTeamEditor(true) },
@@ -173,9 +174,7 @@ fun ScoreboardScreen(
                 modifier = Modifier.weight(1f)
             )
             TeamHalf(
-                title = "Visitante",
                 team = state.visitor,
-                setPoint = visitorSetPoint,
                 matchPoint = visitorMatchPoint,
                 matchFinished = matchFinished,
                 onEditTeam = { onOpenTeamEditor(false) },
@@ -199,9 +198,8 @@ fun ScoreboardScreen(
             onResetAll = onResetAll,
             onOpenSettings = { onToggleSettings(true) },
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp)
                 .align(Alignment.TopEnd)
+                .padding(top = 4.dp, end = 4.dp)
         )
     }
 
@@ -243,25 +241,55 @@ fun TopActions(
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Row(
+    Column(
         modifier = modifier,
-        horizontalArrangement = Arrangement.End,
-        verticalAlignment = Alignment.CenterVertically
+        horizontalAlignment = Alignment.End,
+        verticalArrangement = Arrangement.Top
     ) {
-        IconButton(onClick = onResetAll) {
-            Icon(Icons.Default.Refresh, contentDescription = "Reset general")
+        Surface(
+            shape = CircleShape,
+            color = Color.White,
+            shadowElevation = 4.dp,
+            modifier = Modifier
+                .size(32.dp)
+                .padding(bottom = 4.dp)
+        ) {
+            IconButton(
+                onClick = onResetAll,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    Icons.Default.Refresh,
+                    contentDescription = "Reset general",
+                    tint = Color.Black,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
         }
-        IconButton(onClick = onOpenSettings) {
-            Icon(Icons.Default.Settings, contentDescription = "Configuración")
+        Surface(
+            shape = CircleShape,
+            color = Color.White,
+            shadowElevation = 4.dp,
+            modifier = Modifier.size(32.dp)
+        ) {
+            IconButton(
+                onClick = onOpenSettings,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    Icons.Default.Settings,
+                    contentDescription = "Configuración",
+                    tint = Color.Black,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
         }
     }
 }
 
 @Composable
 fun TeamHalf(
-    title: String,
     team: TeamState,
-    setPoint: Boolean,
     matchPoint: Boolean,
     matchFinished: Boolean,
     onEditTeam: () -> Unit,
@@ -298,59 +326,51 @@ fun TeamHalf(
             .padding(16.dp)
     ) {
         Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .padding(top = 24.dp, bottom = 16.dp)
+                .zIndex(1f)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onEditTeam
+                )
+        ) {
+            Text(
+                text = team.name,
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 34.sp,
+                    shadow = Shadow(
+                        color = Color.Black.copy(alpha = 0.75f),
+                        offset = Offset(2f, 2f),
+                        blurRadius = 4f
+                    )
+                ),
+                color = team.color,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
+            )
+        }
+        
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .zIndex(1f),
-                contentAlignment = Alignment.TopCenter
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .padding(top = 24.dp, bottom = 20.dp)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = onEditTeam
-                        )
-                ) {
-                    OutlinedText(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = ColorWhite.copy(alpha = 0.95f),
-                        strokeColor = Color.Black,
-                        strokeWidthDp = 2f,
-                        maxLines = 1,
-                        textAlign = TextAlign.Center
-                    )
-                    OutlinedText(
-                        text = team.name,
-                        style = MaterialTheme.typography.headlineMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 34.sp
-                        ),
-                        color = ColorWhite,
-                        strokeColor = Color.Black,
-                        strokeWidthDp = 2f,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
+            Spacer(modifier = Modifier.weight(1f))
             FlipCounter(
                 value = team.points,
                 background = team.color,
-                setPoint = setPoint,
                 matchPoint = matchPoint,
-                modifier = Modifier.zIndex(0f)
+                modifier = Modifier
             )
+            Spacer(modifier = Modifier.weight(1f))
         }
     }
 }
@@ -359,46 +379,53 @@ fun TeamHalf(
 fun FlipCounter(
     value: Int,
     background: Color,
-    setPoint: Boolean,
     matchPoint: Boolean,
     modifier: Modifier = Modifier
 ) {
+    val cardColor = Color(0xFFF7F7F7)
     Surface(
-        color = background,
-        contentColor = ColorWhite,
-        shape = RoundedCornerShape(8.dp),
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
+        color = cardColor,
+        contentColor = Color.Black,
+        shape = RoundedCornerShape(12.dp),
+        tonalElevation = 10.dp,
+        shadowElevation = 12.dp,
         modifier = modifier
-            .fillMaxWidth()
-            .aspectRatio(1.2f)
+            .fillMaxWidth(fraction = 0.95f)
+            .aspectRatio(1.05f)
     ) {
         Box(contentAlignment = Alignment.Center) {
+            HorizontalDivider(
+                color = Color.Black.copy(alpha = 0.16f),
+                thickness = 1.5.dp,
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .align(Alignment.Center)
+            )
             AnimatedContent(
                 targetState = value,
                 transitionSpec = {
-                    fadeIn(animationSpec = tween(120)) togetherWith
-                            fadeOut(animationSpec = tween(120))
+                    val direction = if (targetState > initialState) -1 else 1
+                    (slideInVertically(animationSpec = tween(180)) { fullHeight -> fullHeight / 2 * direction } + fadeIn(animationSpec = tween(180))) togetherWith
+                            (slideOutVertically(animationSpec = tween(180)) { fullHeight -> -fullHeight / 2 * direction } + fadeOut(animationSpec = tween(180)))
                 },
                 label = "counter"
             ) { target ->
-                val textColor = when {
-                    matchPoint -> Color(0xFFFFEBEE)
-                    setPoint -> ColorWhite
-                    else -> ColorWhite
-                }
+                val textColor = background
                 val animatedScale by animateHeartbeat(matchPoint)
-                OutlinedText(
+                Text(
                     text = target.toString().padStart(2, '0'),
                     modifier = Modifier.scale(animatedScale),
                     style = MaterialTheme.typography.displayLarge.copy(
                         fontWeight = FontWeight.Bold,
-                        fontSize = 260.sp,
-                        letterSpacing = 2.sp
+                        fontSize = 220.sp,
+                        letterSpacing = 1.5.sp,
+                        shadow = Shadow(
+                            color = Color.Black.copy(alpha = 0.75f),
+                            offset = Offset(3f, 3f),
+                            blurRadius = 5f
+                        )
                     ),
                     color = textColor,
-                    strokeColor = Color.Black,
-                    strokeWidthDp = 3f,
                     textAlign = TextAlign.Center
                 )
             }
@@ -440,14 +467,14 @@ fun SetsBar(
     ) {
         Column(
             modifier = Modifier
-                .padding(horizontal = 20.dp, vertical = 12.dp)
+                .padding(horizontal = 28.dp, vertical = 12.dp)
                 .wrapContentWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
             Text(
                 text = "Sets",
-                style = MaterialTheme.typography.labelMedium.copy(fontSize = 16.sp, fontWeight = FontWeight.Bold),
+                style = MaterialTheme.typography.labelMedium.copy(fontSize = 18.sp, fontWeight = FontWeight.Bold),
                 color = Color.Gray
             )
             Spacer(modifier = Modifier.height(6.dp))
@@ -460,7 +487,7 @@ fun SetsBar(
                     text = localSets.toString(),
                     style = MaterialTheme.typography.headlineSmall.copy(
                         fontWeight = FontWeight.Bold,
-                        fontSize = 24.sp
+                        fontSize = 32.sp
                     ),
                     modifier = Modifier
                         .padding(vertical = 10.dp)
@@ -469,7 +496,7 @@ fun SetsBar(
                             indication = null,
                             onClick = onTapLocal
                         )
-                        .padding(horizontal = 8.dp)
+                        .padding(horizontal = 12.dp)
                 )
                 Box(
                     modifier = Modifier
@@ -481,7 +508,7 @@ fun SetsBar(
                     text = visitorSets.toString(),
                     style = MaterialTheme.typography.headlineSmall.copy(
                         fontWeight = FontWeight.Bold,
-                        fontSize = 24.sp
+                        fontSize = 32.sp
                     ),
                     modifier = Modifier
                         .padding(vertical = 10.dp)
@@ -490,7 +517,7 @@ fun SetsBar(
                             indication = null,
                             onClick = onTapVisitor
                         )
-                        .padding(horizontal = 8.dp)
+                        .padding(horizontal = 12.dp)
                 )
             }
         }
@@ -507,8 +534,8 @@ fun TeamEditDialog(
     val basePalette = listOf(
         OrangePrimary,
         PurplePrimary,
-        Color(0xFFFFFFFF), // white
-        Color(0xFF000000), // black
+        Color(0xFFE8E8E8), // light gray (softer white)
+        Color(0xFF2B2B2B), // dark gray (softer black)
         Color(0xFF9CA3AF), // gray
         Color(0xFFEF4444), // red
         Color(0xFFEC4899), // pink
@@ -534,7 +561,7 @@ fun TeamEditDialog(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     value = name,
-                    onValueChange = { name = it },
+                    onValueChange = { if (it.length <= 15) name = it },
                     label = { Text("Nombre") },
                     singleLine = true
                 )
@@ -678,40 +705,6 @@ fun SetSelectionDialog(
             TextButton(onClick = onDismiss) { Text("Cerrar") }
         }
     )
-}
-
-@Composable
-fun OutlinedText(
-    text: String,
-    style: TextStyle,
-    color: Color,
-    modifier: Modifier = Modifier,
-    strokeColor: Color = Color.Black,
-    strokeWidthDp: Float = 2f,
-    maxLines: Int = Int.MAX_VALUE,
-    overflow: TextOverflow = TextOverflow.Clip,
-    textAlign: TextAlign? = null
-) {
-    val strokeWidthPx = with(LocalDensity.current) { strokeWidthDp.dp.toPx() }
-    Box(modifier = modifier.padding(vertical = 2.dp)) {
-        Text(
-            text = text,
-            style = style.copy(
-                color = strokeColor,
-                drawStyle = Stroke(width = strokeWidthPx)
-            ),
-            maxLines = maxLines,
-            overflow = overflow,
-            textAlign = textAlign
-        )
-        Text(
-            text = text,
-            style = style.copy(color = color),
-            maxLines = maxLines,
-            overflow = overflow,
-            textAlign = textAlign
-        )
-    }
 }
 
 data class TeamState(

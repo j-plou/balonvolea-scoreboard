@@ -36,3 +36,17 @@ Para evitar consumo de batería, y utilizar la aplicación con la pantalla apaga
 - Configuración: selector de número de sets (1, 3 o 5; si es 1 el set es a 25, si 3/5 el último a 15); ajuste para captura de volumen.
 - Finalización y avisos: set point → texto rojo; match point → texto rojo con latido suave; fin de partido → confetti y aplauso suave tipo “golf clap”.
 - UI de puntos: contadores estilo flip clock (dígitos divididos con animación de volteo, tipografía monoespaciada, fondo con color de equipo, buen contraste).
+
+## Operaciones 
+
+- Lanzar build
+
+```
+gradlew :app:assembleDebug
+```
+
+- Generar imagen 
+
+```
+adb exec-out screencap -p > ./screen.png
+```
