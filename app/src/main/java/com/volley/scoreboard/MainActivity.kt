@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -14,6 +15,8 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -63,6 +66,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -119,6 +123,151 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private fun getOrdinalText(number: Int): String {
+    return when (number) {
+        1 -> "Primer"
+        2 -> "Segundo"
+        3 -> "Tercer"
+        4 -> "Cuarto"
+        5 -> "Quinto"
+        else -> "${number}º"
+    }
+}
+
+@Composable
+fun SetSummaryDialog(
+    state: ScoreboardState,
+    onContinue: () -> Unit
+) {
+    val isMatchFinished = state.isMatchFinished()
+    val winnerIsLocal = state.lastSetWinner ?: true
+    val winnerTeam = if (winnerIsLocal) state.local else state.visitor
+    val setNumber = state.setHistory.size
+    
+    val title = if (isMatchFinished) {
+        "🏆 Victoria para ${winnerTeam.name}"
+    } else {
+        "🏆 ${getOrdinalText(setNumber)} set para ${winnerTeam.name}"
+    }
+    
+    val buttonText = if (isMatchFinished) "Finalizar" else "Continuar"
+    
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.5f))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {}
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth(0.85f),
+            shape = RoundedCornerShape(16.dp),
+            color = Color.White,
+            shadowElevation = 8.dp
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.headlineMedium.copy(
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    textAlign = TextAlign.Center
+                )
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = state.local.name,
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            textAlign = TextAlign.Center,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = state.visitor.name,
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            textAlign = TextAlign.Center,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+                
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    state.setHistory.forEach { result ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = result.localPoints.toString(),
+                                style = MaterialTheme.typography.headlineMedium.copy(
+                                    fontSize = 22.sp
+                                ),
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                text = result.visitorPoints.toString(),
+                                style = MaterialTheme.typography.headlineMedium.copy(
+                                    fontSize = 22.sp
+                                ),
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+                
+                Button(
+                    onClick = onContinue,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = buttonText,
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun ScoreboardApp(viewModel: ScoreboardViewModel) {
     val state = viewModel.uiState
@@ -135,7 +284,8 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
         onSelectTotalSets = { viewModel.updateTotalSets(it) },
         onOpenSetSelector = { viewModel.openSetSelector(it) },
         onCloseSetSelector = { viewModel.closeSetSelector() },
-        onSelectSetValue = { side, value -> viewModel.setSetsValue(side, value) }
+        onSelectSetValue = { side, value -> viewModel.setSetsValue(side, value) },
+        onContinueAfterSetWin = { viewModel.continueAfterSetWin() }
     )
 }
 
@@ -153,7 +303,8 @@ fun ScoreboardScreen(
     onSelectTotalSets: (Int) -> Unit,
     onOpenSetSelector: (Boolean) -> Unit,
     onCloseSetSelector: () -> Unit,
-    onSelectSetValue: (Boolean, Int) -> Unit
+    onSelectSetValue: (Boolean, Int) -> Unit,
+    onContinueAfterSetWin: () -> Unit
 ) {
     val matchFinished = state.isMatchFinished()
     val currentSetNumber = state.local.sets + state.visitor.sets + 1
@@ -168,6 +319,7 @@ fun ScoreboardScreen(
                 team = state.local,
                 matchPoint = localMatchPoint,
                 matchFinished = matchFinished,
+                isLocal = true,
                 onEditTeam = { onOpenTeamEditor(true) },
                 onSwipeUp = { onIncrementPoint(true) },
                 onSwipeDown = { onDecrementPoint(true) },
@@ -177,6 +329,7 @@ fun ScoreboardScreen(
                 team = state.visitor,
                 matchPoint = visitorMatchPoint,
                 matchFinished = matchFinished,
+                isLocal = false,
                 onEditTeam = { onOpenTeamEditor(false) },
                 onSwipeUp = { onIncrementPoint(false) },
                 onSwipeDown = { onDecrementPoint(false) },
@@ -231,6 +384,13 @@ fun ScoreboardScreen(
             initialColor = team.color,
             onDismiss = onCloseTeamEditor,
             onSave = { name, color -> onUpdateTeam(side, name, color) }
+        )
+    }
+
+    if (state.showSetSummary) {
+        SetSummaryDialog(
+            state = state,
+            onContinue = onContinueAfterSetWin
         )
     }
 }
@@ -292,6 +452,7 @@ fun TeamHalf(
     team: TeamState,
     matchPoint: Boolean,
     matchFinished: Boolean,
+    isLocal: Boolean,
     onEditTeam: () -> Unit,
     onSwipeUp: () -> Unit,
     onSwipeDown: () -> Unit,
@@ -368,9 +529,86 @@ fun TeamHalf(
                 value = team.points,
                 background = team.color,
                 matchPoint = matchPoint,
+                streak = team.streak,
+                isLocal = isLocal,
                 modifier = Modifier
             )
             Spacer(modifier = Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+fun StreakIndicator(
+    streak: Int,
+    isLeftAligned: Boolean,
+    modifier: Modifier = Modifier
+) {
+    AnimatedVisibility(
+        visible = streak >= 3,
+        enter = fadeIn(animationSpec = tween(300)) + scaleIn(initialScale = 0.5f),
+        exit = fadeOut(animationSpec = tween(300)) + scaleOut(targetScale = 0.5f),
+        modifier = modifier
+    ) {
+        val shakeDuration = when {
+            streak >= 10 -> 150
+            streak >= 8 -> 250
+            streak >= 6 -> 350
+            streak >= 4 -> 500
+            else -> 650
+        }
+        
+        val shakeAmplitude = when {
+            streak >= 8 -> 5f
+            streak >= 5 -> 4f
+            else -> 3f
+        }
+        
+        val infiniteTransition = rememberInfiniteTransition(label = "shake_$streak")
+        val shakeRotation by infiniteTransition.animateFloat(
+            initialValue = -shakeAmplitude,
+            targetValue = shakeAmplitude,
+            animationSpec = infiniteRepeatable(
+                animation = tween(shakeDuration / 2, easing = FastOutLinearInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "shake_rotation"
+        )
+        
+        val scale by infiniteTransition.animateFloat(
+            initialValue = 1f,
+            targetValue = 1.2f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(shakeDuration, easing = FastOutLinearInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "pulse_scale"
+        )
+        
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .scale(scale)
+                .rotate(shakeRotation)
+                .background(
+                    color = Color(0xFFEF4444).copy(alpha = 0.9f),
+                    shape = RoundedCornerShape(12.dp)
+                )
+                .padding(horizontal = 8.dp, vertical = 4.dp)
+        ) {
+            Text(
+                text = "🔥",
+                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 18.sp)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = "+$streak",
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                ),
+                color = Color.White
+            )
         }
     }
 }
@@ -380,6 +618,8 @@ fun FlipCounter(
     value: Int,
     background: Color,
     matchPoint: Boolean,
+    streak: Int = 0,
+    isLocal: Boolean,
     modifier: Modifier = Modifier
 ) {
     val cardColor = Color(0xFFF7F7F7)
@@ -411,10 +651,14 @@ fun FlipCounter(
                 label = "counter"
             ) { target ->
                 val textColor = background
-                val animatedScale by animateHeartbeat(matchPoint)
+                val (rotation, scale) = animateShake(matchPoint)
+                val animatedRotation by rotation
+                val animatedScale by scale
                 Text(
                     text = target.toString().padStart(2, '0'),
-                    modifier = Modifier.scale(animatedScale),
+                    modifier = Modifier
+                        .scale(animatedScale)
+                        .rotate(animatedRotation),
                     style = MaterialTheme.typography.displayLarge.copy(
                         fontWeight = FontWeight.Bold,
                         fontSize = 220.sp,
@@ -429,23 +673,46 @@ fun FlipCounter(
                     textAlign = TextAlign.Center
                 )
             }
+            
+            StreakIndicator(
+                streak = streak,
+                isLeftAligned = isLocal,
+                modifier = Modifier
+                    .align(if (isLocal) Alignment.BottomStart else Alignment.BottomEnd)
+                    .padding(12.dp)
+            )
         }
     }
 }
 
 @Composable
-fun animateHeartbeat(active: Boolean): androidx.compose.runtime.State<Float> {
-    if (!active) return remember { mutableStateOf(1f) }
-    val transition = rememberInfiniteTransition(label = "heartbeatTransition")
-    return transition.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.15f,
+fun animateShake(active: Boolean): Pair<androidx.compose.runtime.State<Float>, androidx.compose.runtime.State<Float>> {
+    val shakeDuration = 250
+    val shakeAmplitude = 5f
+    
+    val transition = rememberInfiniteTransition(label = "shakeTransition")
+    
+    val rotation = transition.animateFloat(
+        initialValue = if (active) -shakeAmplitude else 0f,
+        targetValue = if (active) shakeAmplitude else 0f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 700, easing = FastOutLinearInEasing),
+            animation = tween(durationMillis = shakeDuration / 2, easing = FastOutLinearInEasing),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "heartbeat"
+        label = "shake_rotation"
     )
+    
+    val scale = transition.animateFloat(
+        initialValue = 1f,
+        targetValue = if (active) 1.2f else 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = shakeDuration, easing = FastOutLinearInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "shake_scale"
+    )
+    
+    return Pair(rotation, scale)
 }
 
 @Composable
@@ -711,7 +978,14 @@ data class TeamState(
     val name: String,
     val color: Color,
     val points: Int = 0,
-    val sets: Int = 0
+    val sets: Int = 0,
+    val streak: Int = 0
+)
+
+data class SetResult(
+    val setNumber: Int,
+    val localPoints: Int,
+    val visitorPoints: Int
 )
 
 data class ScoreboardState(
@@ -721,7 +995,10 @@ data class ScoreboardState(
     val volumeControlEnabled: Boolean = true,
     val isSettingsOpen: Boolean = false,
     val editingTeamSide: Boolean? = null,
-    val editingSetsSide: Boolean? = null
+    val editingSetsSide: Boolean? = null,
+    val setHistory: List<SetResult> = emptyList(),
+    val showSetSummary: Boolean = false,
+    val lastSetWinner: Boolean? = null
 ) {
     fun isMatchFinished(): Boolean {
         val targetSets = setsToWin(totalSets)
@@ -735,25 +1012,43 @@ class ScoreboardViewModel : androidx.lifecycle.ViewModel() {
 
     fun incrementPoints(isLocal: Boolean) {
         val state = uiState
-        if (state.isMatchFinished()) return
+        if (state.isMatchFinished() || state.showSetSummary) return
         val setNumber = state.local.sets + state.visitor.sets + 1
         val target = setTarget(setNumber, state.totalSets)
         val teams = if (isLocal) state.local to state.visitor else state.visitor to state.local
         val updatedPoints = teams.first.points + 1
         if (wouldWinSet(updatedPoints, teams.second.points, target)) {
-            val updatedWinner = teams.first.copy(points = 0, sets = teams.first.sets + 1)
-            val updatedLoser = teams.second.copy(points = 0)
+            val updatedWinner = teams.first.copy(points = updatedPoints, sets = teams.first.sets + 1, streak = 0)
+            val updatedLoser = teams.second.copy(streak = 0)
+            val newSetResult = SetResult(
+                setNumber = setNumber,
+                localPoints = if (isLocal) updatedPoints else teams.second.points,
+                visitorPoints = if (isLocal) teams.second.points else updatedPoints
+            )
+            uiState = if (isLocal) {
+                state.copy(
+                    local = updatedWinner, 
+                    visitor = updatedLoser,
+                    setHistory = state.setHistory + newSetResult,
+                    showSetSummary = true,
+                    lastSetWinner = true
+                )
+            } else {
+                state.copy(
+                    local = updatedLoser, 
+                    visitor = updatedWinner,
+                    setHistory = state.setHistory + newSetResult,
+                    showSetSummary = true,
+                    lastSetWinner = false
+                )
+            }
+        } else {
+            val updatedWinner = teams.first.copy(points = updatedPoints, streak = teams.first.streak + 1)
+            val updatedLoser = teams.second.copy(streak = 0)
             uiState = if (isLocal) {
                 state.copy(local = updatedWinner, visitor = updatedLoser)
             } else {
                 state.copy(local = updatedLoser, visitor = updatedWinner)
-            }
-        } else {
-            val updatedWinner = teams.first.copy(points = updatedPoints)
-            uiState = if (isLocal) {
-                state.copy(local = updatedWinner)
-            } else {
-                state.copy(visitor = updatedWinner)
             }
         }
     }
@@ -761,11 +1056,33 @@ class ScoreboardViewModel : androidx.lifecycle.ViewModel() {
     fun decrementPoints(isLocal: Boolean) {
         val state = uiState
         val team = if (isLocal) state.local else state.visitor
-        val updated = team.copy(points = max(0, team.points - 1))
-        uiState = if (isLocal) {
-            state.copy(local = updated)
+        if (team.points > 0) {
+            val newPoints = team.points - 1
+            val newStreak = max(0, team.streak - 1)
+            val updated = team.copy(points = newPoints, streak = newStreak)
+            uiState = if (isLocal) {
+                state.copy(local = updated)
+            } else {
+                state.copy(visitor = updated)
+            }
+        }
+    }
+
+    fun continueAfterSetWin() {
+        val state = uiState
+        val matchFinished = state.isMatchFinished()
+        uiState = if (matchFinished) {
+            state.copy(
+                showSetSummary = false,
+                lastSetWinner = null
+            )
         } else {
-            state.copy(visitor = updated)
+            state.copy(
+                local = state.local.copy(points = 0, streak = 0),
+                visitor = state.visitor.copy(points = 0, streak = 0),
+                showSetSummary = false,
+                lastSetWinner = null
+            )
         }
     }
 
@@ -788,19 +1105,22 @@ class ScoreboardViewModel : androidx.lifecycle.ViewModel() {
     fun resetPoints() {
         val state = uiState
         uiState = state.copy(
-            local = state.local.copy(points = 0),
-            visitor = state.visitor.copy(points = 0)
+            local = state.local.copy(points = 0, streak = 0),
+            visitor = state.visitor.copy(points = 0, streak = 0)
         )
     }
 
     fun resetAll() {
         val state = uiState
         uiState = state.copy(
-            local = state.local.copy(points = 0, sets = 0),
-            visitor = state.visitor.copy(points = 0, sets = 0),
+            local = state.local.copy(points = 0, sets = 0, streak = 0),
+            visitor = state.visitor.copy(points = 0, sets = 0, streak = 0),
             isSettingsOpen = false,
             editingTeamSide = null,
-            editingSetsSide = null
+            editingSetsSide = null,
+            setHistory = emptyList(),
+            showSetSummary = false,
+            lastSetWinner = null
         )
     }
 
@@ -818,10 +1138,12 @@ class ScoreboardViewModel : androidx.lifecycle.ViewModel() {
         val clamped = value.coerceIn(0, limit)
         val team = if (isLocal) state.local else state.visitor
         val updatedTeam = team.copy(sets = clamped)
+        val newTotalSets = if (isLocal) clamped + state.visitor.sets else state.local.sets + clamped
+        val truncatedHistory = state.setHistory.take(newTotalSets)
         uiState = if (isLocal) {
-            state.copy(local = updatedTeam, editingSetsSide = null)
+            state.copy(local = updatedTeam, editingSetsSide = null, setHistory = truncatedHistory)
         } else {
-            state.copy(visitor = updatedTeam, editingSetsSide = null)
+            state.copy(visitor = updatedTeam, editingSetsSide = null, setHistory = truncatedHistory)
         }
     }
 
