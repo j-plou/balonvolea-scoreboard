@@ -282,9 +282,6 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
         onToggleSettings = { viewModel.toggleSettings(it) },
         onToggleVolumeControl = { viewModel.setVolumeControl(it) },
         onSelectTotalSets = { viewModel.updateTotalSets(it) },
-        onOpenSetSelector = { viewModel.openSetSelector(it) },
-        onCloseSetSelector = { viewModel.closeSetSelector() },
-        onSelectSetValue = { side, value -> viewModel.setSetsValue(side, value) },
         onContinueAfterSetWin = { viewModel.continueAfterSetWin() }
     )
 }
@@ -301,9 +298,6 @@ fun ScoreboardScreen(
     onToggleSettings: (Boolean) -> Unit,
     onToggleVolumeControl: (Boolean) -> Unit,
     onSelectTotalSets: (Int) -> Unit,
-    onOpenSetSelector: (Boolean) -> Unit,
-    onCloseSetSelector: () -> Unit,
-    onSelectSetValue: (Boolean, Int) -> Unit,
     onContinueAfterSetWin: () -> Unit
 ) {
     val matchFinished = state.isMatchFinished()
@@ -342,9 +336,7 @@ fun ScoreboardScreen(
             visitorSets = state.visitor.sets,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(16.dp),
-            onTapLocal = { onOpenSetSelector(true) },
-            onTapVisitor = { onOpenSetSelector(false) }
+                .padding(16.dp)
         )
 
         TopActions(
@@ -363,17 +355,6 @@ fun ScoreboardScreen(
             onDismiss = { onToggleSettings(false) },
             onVolumeControlChange = onToggleVolumeControl,
             onTotalSetsChange = onSelectTotalSets
-        )
-    }
-
-    state.editingSetsSide?.let { side ->
-        val sets = if (side) state.local.sets else state.visitor.sets
-        SetSelectionDialog(
-            sideLabel = if (side) "Local" else "Visitante",
-            current = sets,
-            totalSets = state.totalSets,
-            onDismiss = onCloseSetSelector,
-            onSelect = { value -> onSelectSetValue(side, value) }
         )
     }
 
@@ -719,9 +700,7 @@ fun animateShake(active: Boolean): Pair<androidx.compose.runtime.State<Float>, a
 fun SetsBar(
     localSets: Int,
     visitorSets: Int,
-    modifier: Modifier = Modifier,
-    onTapLocal: () -> Unit,
-    onTapVisitor: () -> Unit
+    modifier: Modifier = Modifier
 ) {
     Surface(
         shape = RoundedCornerShape(12.dp),
@@ -756,14 +735,7 @@ fun SetsBar(
                         fontWeight = FontWeight.Bold,
                         fontSize = 32.sp
                     ),
-                    modifier = Modifier
-                        .padding(vertical = 10.dp)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = onTapLocal
-                        )
-                        .padding(horizontal = 12.dp)
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
                 )
                 Box(
                     modifier = Modifier
@@ -777,14 +749,7 @@ fun SetsBar(
                         fontWeight = FontWeight.Bold,
                         fontSize = 32.sp
                     ),
-                    modifier = Modifier
-                        .padding(vertical = 10.dp)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = onTapVisitor
-                        )
-                        .padding(horizontal = 12.dp)
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
                 )
             }
         }
@@ -937,43 +902,6 @@ fun SettingsDialog(
     )
 }
 
-@Composable
-fun SetSelectionDialog(
-    sideLabel: String,
-    current: Int,
-    totalSets: Int,
-    onDismiss: () -> Unit,
-    onSelect: (Int) -> Unit
-) {
-    val options = (0..setsToWin(totalSets)).toList()
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Ajustar sets $sideLabel") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(text = "Selecciona el marcador de sets (0-${setsToWin(totalSets)})")
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    options.forEach { value ->
-                        val selected = value == current
-                        Button(
-                            onClick = { onSelect(value) },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                                contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-                            )
-                        ) {
-                            Text(value.toString())
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Cerrar") }
-        }
-    )
-}
-
 data class TeamState(
     val name: String,
     val color: Color,
@@ -995,7 +923,6 @@ data class ScoreboardState(
     val volumeControlEnabled: Boolean = true,
     val isSettingsOpen: Boolean = false,
     val editingTeamSide: Boolean? = null,
-    val editingSetsSide: Boolean? = null,
     val setHistory: List<SetResult> = emptyList(),
     val showSetSummary: Boolean = false,
     val lastSetWinner: Boolean? = null
@@ -1117,34 +1044,10 @@ class ScoreboardViewModel : androidx.lifecycle.ViewModel() {
             visitor = state.visitor.copy(points = 0, sets = 0, streak = 0),
             isSettingsOpen = false,
             editingTeamSide = null,
-            editingSetsSide = null,
             setHistory = emptyList(),
             showSetSummary = false,
             lastSetWinner = null
         )
-    }
-
-    fun openSetSelector(isLocal: Boolean) {
-        uiState = uiState.copy(editingSetsSide = isLocal)
-    }
-
-    fun closeSetSelector() {
-        uiState = uiState.copy(editingSetsSide = null)
-    }
-
-    fun setSetsValue(isLocal: Boolean, value: Int) {
-        val state = uiState
-        val limit = setsToWin(state.totalSets)
-        val clamped = value.coerceIn(0, limit)
-        val team = if (isLocal) state.local else state.visitor
-        val updatedTeam = team.copy(sets = clamped)
-        val newTotalSets = if (isLocal) clamped + state.visitor.sets else state.local.sets + clamped
-        val truncatedHistory = state.setHistory.take(newTotalSets)
-        uiState = if (isLocal) {
-            state.copy(local = updatedTeam, editingSetsSide = null, setHistory = truncatedHistory)
-        } else {
-            state.copy(visitor = updatedTeam, editingSetsSide = null, setHistory = truncatedHistory)
-        }
     }
 
     fun openTeamEditor(isLocal: Boolean) {
