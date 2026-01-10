@@ -49,6 +49,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.shape.CircleShape
@@ -824,30 +825,30 @@ fun SetsBar(
                     text = localSets.toString(),
                     style = MaterialTheme.typography.headlineSmall.copy(
                         fontWeight = FontWeight.Bold,
-                        fontSize = 28.sp
+                        fontSize = 32.sp
                     ),
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                 )
                 Box(
                     modifier = Modifier
                         .width(1.dp)
-                        .height(24.dp)
+                        .height(28.dp)
                         .background(Color.LightGray.copy(alpha = 0.8f))
                 )
                 Text(
                     text = visitorSets.toString(),
                     style = MaterialTheme.typography.headlineSmall.copy(
                         fontWeight = FontWeight.Bold,
-                        fontSize = 28.sp
+                        fontSize = 32.sp
                     ),
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                 )
             }
             
             if (setHistory.isNotEmpty()) {
                 Box(
                     modifier = Modifier
-                        .width(80.dp)
+                        .width(90.dp)
                         .height(1.dp)
                         .background(Color.LightGray.copy(alpha = 0.5f))
                 )
@@ -858,14 +859,14 @@ fun SetsBar(
                 ) {
                     setHistory.forEach { result ->
                         Row(
-                            modifier = Modifier.width(80.dp),
+                            modifier = Modifier.width(90.dp),
                             horizontalArrangement = Arrangement.Center,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
                                 text = result.localPoints.toString(),
                                 style = MaterialTheme.typography.bodySmall.copy(
-                                    fontSize = 13.sp,
+                                    fontSize = 15.sp,
                                     fontWeight = FontWeight.Normal
                                 ),
                                 modifier = Modifier.weight(1f),
@@ -874,14 +875,14 @@ fun SetsBar(
                             )
                             Text(
                                 text = "-",
-                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 14.sp),
                                 color = Color.LightGray,
                                 modifier = Modifier.padding(horizontal = 6.dp)
                             )
                             Text(
                                 text = result.visitorPoints.toString(),
                                 style = MaterialTheme.typography.bodySmall.copy(
-                                    fontSize = 13.sp,
+                                    fontSize = 15.sp,
                                     fontWeight = FontWeight.Normal
                                 ),
                                 modifier = Modifier.weight(1f),
@@ -1348,14 +1349,7 @@ fun SettingsDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Sonido de celebración")
-                        Text(
-                            text = "Reproducir aplausos al ganar el partido",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.Gray
-                        )
-                    }
+                    Text("Sonido de celebración")
                     Switch(
                         checked = celebrationSoundEnabled,
                         onCheckedChange = onCelebrationSoundChange
@@ -1379,7 +1373,10 @@ fun SettingsDialog(
                                 contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
                             )
                         ) {
-                            Text("$option")
+                            Text(
+                                text = "$option",
+                                fontSize = 18.sp
+                            )
                         }
                     }
                 }
