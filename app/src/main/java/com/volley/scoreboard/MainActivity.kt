@@ -3,6 +3,8 @@ package com.volley.scoreboard
 import android.content.Context
 import android.media.MediaPlayer
 import android.os.Bundle
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -58,13 +60,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -124,7 +130,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        if (viewModel.isVolumeControlActive()) {
+        if (viewModel.isVolumeControlActive() && event?.repeatCount == 0) {
             when (keyCode) {
                 KeyEvent.KEYCODE_VOLUME_UP -> {
                     viewModel.incrementPoints(isLocal = true)
@@ -184,7 +190,6 @@ fun CustomConfettiEffect(
     LaunchedEffect(isActive) {
         if (isActive) {
             startTime.value = System.currentTimeMillis()
-            // Crear partículas iniciales - explosión masiva
             val newParticles = mutableListOf<ConfettiParticle>()
             val colors = listOf(primaryColor, Color.White, primaryColor.copy(alpha = 0.7f), Color(0xFFFFD700))
             
@@ -206,21 +211,18 @@ fun CustomConfettiEffect(
             }
             particles.value = newParticles
             
-            // Animación
             while (isActive) {
-                delay(16) // ~60fps
+                delay(16)
                 val elapsed = (System.currentTimeMillis() - startTime.value) / 1000f
                 
                 particles.value = particles.value.map { p ->
                     p.copy(
                         x = p.x + p.velocityX * 0.016f,
                         y = p.y + p.velocityY * 0.016f,
-                        velocityY = p.velocityY + 0.5f, // gravedad
+                        velocityY = p.velocityY + 0.5f,
                         rotation = p.rotation + p.rotationSpeed
                     )
-                }.filter { it.y < 1.5f } // Eliminar partículas que salieron de pantalla
-                
-                // Añadir muchas más partículas desde arriba (lluvia intensa)
+                }.filter { it.y < 1.5f }
                 if (elapsed < 10f && Random.nextFloat() < 0.8f) {
                     repeat(3) {
                         val newParticle = ConfettiParticle(
@@ -264,7 +266,6 @@ class CelebrationSoundPlayer(private val context: Context) {
     fun play() {
         stop()
         try {
-            // 1. Pop de cartoon - inmediato
             popPlayer = MediaPlayer.create(context, R.raw.cartoon_pop)
             popPlayer?.setOnCompletionListener { 
                 it.release()
@@ -272,7 +273,6 @@ class CelebrationSoundPlayer(private val context: Context) {
             }
             popPlayer?.start()
             
-            // 2. Celebración femenina - después de 100ms
             celebrationPlayer = MediaPlayer.create(context, R.raw.female_celebration)
             celebrationPlayer?.setOnCompletionListener { 
                 it.release()
@@ -300,6 +300,35 @@ class CelebrationSoundPlayer(private val context: Context) {
             release()
         }
         celebrationPlayer = null
+    }
+}
+
+class HapticFeedback(private val context: Context) {
+    private val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+    
+    fun vibratePoint() {
+        if (vibrator.hasVibrator()) {
+            val effect = VibrationEffect.createOneShot(30, VibrationEffect.DEFAULT_AMPLITUDE)
+            vibrator.vibrate(effect)
+        }
+    }
+    
+    fun vibrateSet() {
+        if (vibrator.hasVibrator()) {
+            val timings = longArrayOf(0, 50, 50, 100)
+            val amplitudes = intArrayOf(0, 100, 0, 150)
+            val effect = VibrationEffect.createWaveform(timings, amplitudes, -1)
+            vibrator.vibrate(effect)
+        }
+    }
+    
+    fun vibrateMatchWin() {
+        if (vibrator.hasVibrator()) {
+            val timings = longArrayOf(0, 100, 100, 100, 100, 200)
+            val amplitudes = intArrayOf(0, 150, 0, 150, 0, 255)
+            val effect = VibrationEffect.createWaveform(timings, amplitudes, -1)
+            vibrator.vibrate(effect)
+        }
     }
 }
 
@@ -355,6 +384,8 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
         onIncrementPoint = { viewModel.incrementPoints(it) },
         onDecrementPoint = { viewModel.decrementPoints(it) },
         onResetAll = { viewModel.resetAll() },
+        onRequestReset = { viewModel.showResetConfirmation(true) },
+        onCancelReset = { viewModel.showResetConfirmation(false) },
         onOpenTeamEditor = { viewModel.openTeamEditor(it) },
         onCloseTeamEditor = { viewModel.closeTeamEditor() },
         onUpdateTeam = { side, name, color -> viewModel.updateTeam(side, name, color) },
@@ -373,6 +404,8 @@ fun ScoreboardScreen(
     onIncrementPoint: (Boolean) -> Unit,
     onDecrementPoint: (Boolean) -> Unit,
     onResetAll: () -> Unit,
+    onRequestReset: () -> Unit,
+    onCancelReset: () -> Unit,
     onOpenTeamEditor: (Boolean) -> Unit,
     onCloseTeamEditor: () -> Unit,
     onUpdateTeam: (Boolean, String, Color) -> Unit,
@@ -425,7 +458,7 @@ fun ScoreboardScreen(
         )
 
         TopActions(
-            onResetAll = onResetAll,
+            onRequestReset = onRequestReset,
             onOpenSettings = { onToggleSettings(true) },
             modifier = Modifier
                 .align(Alignment.TopEnd)
@@ -466,11 +499,31 @@ fun ScoreboardScreen(
             onDismiss = onContinueAfterSetWin
         )
     }
+    
+    if (state.showResetConfirmation) {
+        AlertDialog(
+            onDismissRequest = onCancelReset,
+            title = { Text("Reiniciar partido") },
+            text = { 
+                Text("¿Seguro que deseas reiniciar el partido? Se perderán todos los puntos, sets e historial.") 
+            },
+            confirmButton = {
+                TextButton(onClick = onResetAll) {
+                    Text("Reiniciar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onCancelReset) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
 }
 
 @Composable
 fun TopActions(
-    onResetAll: () -> Unit,
+    onRequestReset: () -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -488,12 +541,12 @@ fun TopActions(
                 .padding(bottom = 4.dp)
         ) {
             IconButton(
-                onClick = onResetAll,
+                onClick = onRequestReset,
                 modifier = Modifier.size(32.dp)
             ) {
                 Icon(
                     Icons.Default.Refresh,
-                    contentDescription = "Reset general",
+                    contentDescription = "Reset",
                     tint = Color.Black,
                     modifier = Modifier.size(16.dp)
                 )
@@ -511,7 +564,7 @@ fun TopActions(
             ) {
                 Icon(
                     Icons.Default.Settings,
-                    contentDescription = "Configuración",
+                    contentDescription = "Settings",
                     tint = Color.Black,
                     modifier = Modifier.size(16.dp)
                 )
@@ -866,7 +919,7 @@ fun SetsBar(
                             Text(
                                 text = result.localPoints.toString(),
                                 style = MaterialTheme.typography.bodySmall.copy(
-                                    fontSize = 15.sp,
+                                    fontSize = 17.sp,
                                     fontWeight = FontWeight.Normal
                                 ),
                                 modifier = Modifier.weight(1f),
@@ -875,14 +928,14 @@ fun SetsBar(
                             )
                             Text(
                                 text = "-",
-                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 14.sp),
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 16.sp),
                                 color = Color.LightGray,
                                 modifier = Modifier.padding(horizontal = 6.dp)
                             )
                             Text(
                                 text = result.visitorPoints.toString(),
                                 style = MaterialTheme.typography.bodySmall.copy(
-                                    fontSize = 15.sp,
+                                    fontSize = 17.sp,
                                     fontWeight = FontWeight.Normal
                                 ),
                                 modifier = Modifier.weight(1f),
@@ -1173,7 +1226,6 @@ fun SetHistoryTimelineDialog(
                     }
                 }
                 
-                // Botón de cierre flotante
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -1192,7 +1244,7 @@ fun SetHistoryTimelineDialog(
                         ) {
                             Icon(
                                 Icons.Default.Close,
-                                contentDescription = "Cerrar",
+                                contentDescription = "Close",
                                 tint = Color.White,
                                 modifier = Modifier.size(20.dp)
                             )
@@ -1320,6 +1372,7 @@ fun SettingsDialog(
 ) {
     var showConfirmationDialog by remember { mutableStateOf(false) }
     var pendingTotalSets by remember { mutableStateOf<Int?>(null) }
+    var expandedDropdown by remember { mutableStateOf(false) }
     
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1355,28 +1408,40 @@ fun SettingsDialog(
                         onCheckedChange = onCelebrationSoundChange
                     )
                 }
-                Text("Número de sets")
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(1, 3, 5).forEach { option ->
-                        val selected = option == totalSets
-                        Button(
-                            onClick = { 
-                                if (hasMatchInProgress && option != totalSets) {
-                                    pendingTotalSets = option
-                                    showConfirmationDialog = true
-                                } else {
-                                    onTotalSetsChange(option)
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                                contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-                            )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Número de sets")
+                    Box {
+                        OutlinedButton(
+                            onClick = { expandedDropdown = true }
                         ) {
-                            Text(
-                                text = "$option",
-                                fontSize = 18.sp
+                            Text(text = "$totalSets")
+                            Icon(
+                                Icons.Default.ArrowDropDown,
+                                contentDescription = "Select number of sets"
                             )
+                        }
+                        DropdownMenu(
+                            expanded = expandedDropdown,
+                            onDismissRequest = { expandedDropdown = false }
+                        ) {
+                            listOf(1, 3, 5).forEach { option ->
+                                DropdownMenuItem(
+                                    text = { Text("$option") },
+                                    onClick = {
+                                        expandedDropdown = false
+                                        if (hasMatchInProgress && option != totalSets) {
+                                            pendingTotalSets = option
+                                            showConfirmationDialog = true
+                                        } else {
+                                            onTotalSetsChange(option)
+                                        }
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -1441,7 +1506,7 @@ data class ScoreboardState(
     val local: TeamState = TeamState("Equipo 1", OrangePrimary),
     val visitor: TeamState = TeamState("Equipo 2", PurplePrimary),
     val totalSets: Int = 5,
-    val volumeControlEnabled: Boolean = true,
+    val volumeControlEnabled: Boolean = false,
     val celebrationSoundEnabled: Boolean = true,
     val isSettingsOpen: Boolean = false,
     val editingTeamSide: Boolean? = null,
@@ -1449,7 +1514,8 @@ data class ScoreboardState(
     val lastSetWinner: Boolean? = null,
     val currentSetSequence: List<Boolean> = emptyList(),
     val showTimelineHistory: Boolean = false,
-    val timelineOpenedBySetWin: Boolean = false
+    val timelineOpenedBySetWin: Boolean = false,
+    val showResetConfirmation: Boolean = false
 ) {
     fun isMatchFinished(): Boolean {
         val targetSets = setsToWin(totalSets)
@@ -1462,9 +1528,11 @@ class ScoreboardViewModel : androidx.lifecycle.ViewModel() {
         private set
     
     private var soundPlayer: CelebrationSoundPlayer? = null
+    private var hapticFeedback: HapticFeedback? = null
     
     fun initSoundPlayer(context: Context) {
         soundPlayer = CelebrationSoundPlayer(context)
+        hapticFeedback = HapticFeedback(context)
     }
     
     fun playCelebrationSound() {
@@ -1515,6 +1583,12 @@ class ScoreboardViewModel : androidx.lifecycle.ViewModel() {
             }
             
             uiState = newState.copy(showTimelineHistory = true, timelineOpenedBySetWin = true)
+            
+            if (newState.isMatchFinished()) {
+                hapticFeedback?.vibrateMatchWin()
+            } else {
+                hapticFeedback?.vibrateSet()
+            }
         } else {
             val updatedWinner = teams.first.copy(points = updatedPoints, streak = teams.first.streak + 1)
             val updatedLoser = teams.second.copy(streak = 0)
@@ -1523,6 +1597,8 @@ class ScoreboardViewModel : androidx.lifecycle.ViewModel() {
             } else {
                 state.copy(local = updatedLoser, visitor = updatedWinner, currentSetSequence = updatedSequence)
             }
+            
+            hapticFeedback?.vibratePoint()
         }
     }
 
@@ -1606,6 +1682,10 @@ class ScoreboardViewModel : androidx.lifecycle.ViewModel() {
         )
     }
 
+    fun showResetConfirmation(show: Boolean) {
+        uiState = uiState.copy(showResetConfirmation = show)
+    }
+
     fun resetAll() {
         val state = uiState
         uiState = state.copy(
@@ -1617,7 +1697,8 @@ class ScoreboardViewModel : androidx.lifecycle.ViewModel() {
             lastSetWinner = null,
             currentSetSequence = emptyList(),
             showTimelineHistory = false,
-            timelineOpenedBySetWin = false
+            timelineOpenedBySetWin = false,
+            showResetConfirmation = false
         )
     }
 
