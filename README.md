@@ -25,26 +25,25 @@ An Android scoreboard application for volleyball matches.
 
 ## Requirements
 
-- Android 7.0+ (API 24)
+- Android 8.0+ (API 26)
 - Gradle 8.13.2
 - JDK 17
 
 ## Getting started
 
-Clone the repository and open it in Android Studio, or build from the command line:
+Clone the repository and open it in Android Studio, or use the available `make` commands:
 
-```bash
-./gradlew :app:assembleDebug
-```
-
-File to install in device:
-
-```bash
-app/build/outputs/apk/debug/app-debug.apk
-```
+| Command | Description |
+|---|---|
+| `make build` | Compile debug APK → `app/build/outputs/apk/debug/app-debug.apk` |
+| `make clean` | Delete all build artifacts |
+| `make test` | Run unit tests (none yet — the human didn't ask for them to the robot) |
+| `make lint` | Run Android lint; report saved to `app/build/reports/lint-results-debug.html` |
+| `make deps-check` | List declared dependencies with their resolved versions |
 
 ## Roadmap
 
-- Distribute app in Play Store and hope to see somebody using it in a real match :blush:
-- Add Makefile for operations
+- ✅ Add Makefile for operations
+- Distribute app in Play Store and hope to see somebody using it in a real match
+- Add actual tests (the robot is learning)
 - Dockerize app
