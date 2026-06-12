@@ -1,52 +1,48 @@
 # Volley Scoreboard
 
-Aplicación Android para llevar el marcador de un partido de Volley
+An Android scoreboard application for volleyball matches.
 
-Muestra el nombre de los equipos (editable) y un color configurable para cada uno (cada mitad del marcador tiene el color de fondo de cada equipo) y se mostrará el nombre junto a la indicacion "local" y "visitante".
+## Features
 
-En el centro de la pantalla, en dos bloques de tamaño grande se controlarán los puntos del set en curso.
+- Displays team names (editable) with a configurable background color per team
+- Increase or decrease each team score by dragging up and down
+- Option to set volume buttons as shortcuts: volume up = +1 local, volume down = +1 visitor
+- Configurable number of sets: best of 1, 3, or 5
+- Scores and sets persist across rotation (forced to landscape) and app restarts
 
-En tamaño menor el conteo de sets de cada equipo.
+### Scoring rules
 
------------------------------------
-|     Local     |    Visitante    |
-|    A TEAM     |     Equipo B    |
-|               |                 |
-|      14       |       21        |
-|               |                 |
-|            2  |  1              |
------------------------------------
+- Standard sets to 25 points (win by 2)
+- Final set (3rd or 5th) to 15 points (win by 2)
+- Sets update automatically when a team wins and reset current-set points
 
-Cada bloque de conteos (puntos de set en curso y sets de equipo) tiene dos controles (+ y -) para incrementear o decrementar el valor.
+### Visual feedback
 
-También hay un botón para reiniciar a 0 los puntos del set en curso de los dos marcadores.
+- Score counters styled as a flip clock (split digits, monospace font, team color background)
+- Scoring streak of 3+ consecutive points → streak counter shown with shake animation (intensity scales with streak length)
+- Match point → score turns red with a heartbeat animation
+- End of match → celebration and confetti!! :tada:
 
-Cuando uno de los equipos llegue a un punto de set, el color de su marcador se pondrá en rojo.
-Cuando uno de los equipos llegue a un punto de partido, el color del texto de su marcador se pondrá en rojo con un efecto como de latido de corazón.
+## Requirements
 
-Para evitar consumo de batería, y utilizar la aplicación con la pantalla apagada, también se pueden incrementar los puntos de cada equipo con los botones de subir y bajar volumen del teléfono (subir para local y bajar para visitante).
+- Android 7.0+ (API 24)
+- Gradle 8.13.2
+- JDK 17
 
-## UX y UI
+## Getting started
 
-- Marcador y sets: partidos al mejor de 1/3/5; sets normales a 25 con diferencia de 2; último set (3º o 5º) a 15 con diferencia de 2; sets se actualizan automáticamente al ganar y reinician puntos; controles manuales de sets limitados 0–3.
-- Interacción y edición: tocar el nombre de un equipo abre modal para editar nombre y elegir color (paleta RGB), por defecto naranja/morado; puntos no pueden bajar de 0.
-- Resets: un reset general que pone puntos y sets a 0.
-- Persistencia/rotación: estado (nombres, colores, puntos, sets) se mantiene en rotación y al reabrir; app forzada a horizontal.
-- Volumen: botones de volumen sólo suman (+1 local con subir, +1 visitante con bajar), también con pantalla bloqueada; la app captura el volumen en primer plano anulando el sistema; habrá ajuste para activar/desactivar esta captura con aviso.
-- Configuración: selector de número de sets (1, 3 o 5; si es 1 el set es a 25, si 3/5 el último a 15); ajuste para captura de volumen.
-- Finalización y avisos: set point → texto rojo; match point → texto rojo con latido suave; fin de partido → confetti y aplauso suave tipo “golf clap”.
-- UI de puntos: contadores estilo flip clock (dígitos divididos con animación de volteo, tipografía monoespaciada, fondo con color de equipo, buen contraste).
+Clone the repository and open it in Android Studio, or build from the command line:
 
-## Operaciones 
-
-- Lanzar build
-
-```
-gradlew :app:assembleDebug
+```bash
+./gradlew :app:assembleDebug
 ```
 
-- Generar imagen 
+File to install in device:
 
+```bash
+app/build/outputs/apk/debug/app-debug.apk
 ```
-adb exec-out screencap -p > ./screen.png
-```
+
+## Roadmap
+
+- Distribute app in Play Store and hope to see somebody using it in a real match :blush:
