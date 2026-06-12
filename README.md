@@ -46,3 +46,5 @@ app/build/outputs/apk/debug/app-debug.apk
 ## Roadmap
 
 - Distribute app in Play Store and hope to see somebody using it in a real match :blush:
+- Add Makefile for operations
+- Dockerize app

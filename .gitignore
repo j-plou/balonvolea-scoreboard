@@ -10,3 +10,4 @@ captures/
 .externalNativeBuild/
 *.iml
 .gradle-cache/
+gradle/wrapper/gradle-wrapper.jar

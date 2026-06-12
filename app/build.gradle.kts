@@ -9,7 +9,7 @@ android {
 
     defaultConfig {
         applicationId = "com.volley.scoreboard"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 34
         versionCode = 1
         versionName = "0.1.0"
