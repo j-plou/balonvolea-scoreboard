@@ -4,11 +4,13 @@ An Android scoreboard application for volleyball matches.
 
 ## Features
 
-- Displays team names (editable) with a configurable background color per team
+- Displays team names (editable) with a configurable background color per team:
+  <img width="1280" height="534" alt="match scores" src="https://github.com/user-attachments/assets/79585171-0e4b-4725-964e-373ded5bfd11" />
 - Increase or decrease each team score by dragging up and down
 - Option to set volume buttons as shortcuts: volume up = +1 local, volume down = +1 visitor
 - Configurable number of sets: best of 1, 3, or 5
-- Scores and sets persist across rotation (forced to landscape) and app restarts
+- Stats! Shows evolution of set points:
+  <img width="1280" height="540" alt="match stats" src="https://github.com/user-attachments/assets/f39a2bfe-d7fa-44a5-a678-127f9b2168b8" />
 
 ### Scoring rules
 
